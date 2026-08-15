@@ -1,0 +1,8 @@
+bin/*
+target/
+__pycache__/
+*.pyc
+*.exe
+*.out
+.DS_Store
+tony/
