@@ -2,15 +2,16 @@
 
 set -euo pipefail
 
-if [[ $# -lt 1 ]]; then
-  echo "Usage: $0 <dir> [X.Y.Z]" >&2
-  echo "  <dir>  Tauri project root (containing package.json and src-tauri/)" >&2
-  echo "  X.Y.Z  Optional explicit version (default: auto-increment patch)" >&2
-  exit 1
+# No args: use current directory and run interactively (confirm with [Y/n]).
+# Otherwise the first argument is the project dir; an optional second is a version.
+interactive=0
+if [[ $# -eq 0 ]]; then
+  root_dir=$(pwd)
+  interactive=1
+else
+  root_dir=$(cd -- "$1" && pwd)
+  shift
 fi
-
-root_dir=$(cd -- "$1" && pwd)
-shift
 
 if [[ $# -eq 0 ]]; then
   current=$(node -p "require('$root_dir/package.json').version")
@@ -23,8 +24,42 @@ if [[ $# -eq 0 ]]; then
 elif [[ $# -eq 1 && $1 =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   version="$1"
 else
-  echo "Usage: $0 <dir> [X.Y.Z]" >&2
+  echo "Usage: $0 [dir] [X.Y.Z]" >&2
+  echo "  No args : use current dir, show versions, confirm with [Y/n]" >&2
+  echo "  dir     Tauri project root (containing package.json and src-tauri/)" >&2
+  echo "  X.Y.Z   Optional explicit version (default: auto-increment patch)" >&2
   exit 1
+fi
+
+# Interactive mode: show the three files' current versions and confirm before writing.
+if [[ $interactive -eq 1 ]]; then
+  ver_file=$(mktemp)
+  node --input-type=module - "$root_dir" <<'READVER' > "$ver_file"
+import fs from 'node:fs'
+import path from 'node:path'
+
+const root = process.argv[2]
+const read = (p) => fs.readFileSync(path.join(root, p), 'utf8')
+const pkg = JSON.parse(read('package.json')).version
+const tauri = JSON.parse(read('src-tauri/tauri.conf.json')).version
+const cargoMatch = read('src-tauri/Cargo.toml').match(/^\[package\][^]*?\nversion = "([^"]+)"/m)
+const cargo = cargoMatch ? cargoMatch[1] : '(not found)'
+
+console.log(`  package.json              : ${pkg}`)
+console.log(`  src-tauri/Cargo.toml      : ${cargo}`)
+console.log(`  src-tauri/tauri.conf.json : ${tauri}`)
+READVER
+  current_versions=$(cat "$ver_file")
+  rm -f "$ver_file"
+
+  echo "Current versions in $root_dir:"
+  echo "$current_versions"
+  echo "New version (auto patch+1): $version"
+  read -r -p "Proceed? [Y/n] " reply || true
+  case "$reply" in
+    ''|Y|y) ;;
+    *) echo "Aborted." >&2; exit 0 ;;
+  esac
 fi
 
 node --input-type=module - "$version" "$root_dir" <<'NODE'
