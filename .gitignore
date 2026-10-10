@@ -7,3 +7,8 @@ __pycache__/
 .DS_Store
 tony/
 graphify-out/
+/post-to-wechat
+.gitignore
+generate_article.py
+/split_lesson_outline
+daily_article.md

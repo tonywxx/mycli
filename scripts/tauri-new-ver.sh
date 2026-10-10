@@ -20,14 +20,19 @@ if [[ $# -eq 0 ]]; then
     exit 1
   fi
   IFS=. read -r major minor patch <<< "$current"
-  version="$major.$minor.$((patch + 1))"
+  # Roll the minor over instead of carrying patch past 9 (0.1.9 -> 0.2.0).
+  if [[ $patch -ge 9 ]]; then
+    version="$major.$((minor + 1)).0"
+  else
+    version="$major.$minor.$((patch + 1))"
+  fi
 elif [[ $# -eq 1 && $1 =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   version="$1"
 else
   echo "Usage: $0 [dir] [X.Y.Z]" >&2
   echo "  No args : use current dir, show versions, confirm with [Y/n]" >&2
   echo "  dir     Tauri project root (containing package.json and src-tauri/)" >&2
-  echo "  X.Y.Z   Optional explicit version (default: auto-increment patch)" >&2
+  echo "  X.Y.Z   Optional explicit version (default: patch+1, patch 9 rolls minor)" >&2
   exit 1
 fi
 
@@ -54,7 +59,7 @@ READVER
 
   echo "Current versions in $root_dir:"
   echo "$current_versions"
-  echo "New version (auto patch+1): $version"
+  echo "New version (auto): $version"
   read -r -p "Proceed? [Y/n] " reply || true
   case "$reply" in
     ''|Y|y) ;;
